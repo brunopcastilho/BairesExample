@@ -1,0 +1,22 @@
+type Query{
+    """
+    Get all users
+    """
+    getUsers: [User]
+
+    """
+    Get user by id
+    """
+    getUser(id: ID!): User
+
+}
+
+type User {
+    id: ID!
+    name: String
+    creationUser: String
+    creationDate: String
+    updateDate: String
+
+}
+

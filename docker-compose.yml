@@ -1,0 +1,146 @@
+services:
+  eurekaserver:
+    image: eurekaserver
+    container_name: eurekaserver
+    ports:
+      - "8761:8761"
+    environment:
+      - EUREKA_DATACENTERINFO_NAME=eurekaserver
+      - EUREKA_INSTANCE_HOSTNAME=eurekaserver
+      - SPRING_SECURITY_USER_NAME=user
+      - SPRING_SECURITY_USER_PASSWORD=user
+      - EUREKA_CLIENT_REGISTER-WITH-EUREKA=false
+      - EUREKA_CLIENT_FETCH-REGISTRY=false
+      - EUREKA_INSTANCE_PREFER-IP-ADDRESS=false
+      - EUREKA_INSTANCE_HOSTNAME=eurekaserver
+      - SERVER_PORT=8761
+    networks:
+      - baires-network
+
+  configserver:
+    image: configserver
+    container_name: configserver
+    ports:
+      - "8888:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=native
+      - SPRING_CLOUD_CONFIG_SERVER_NATIVE_SEARCHLOCATIONS=file:/tmp/config
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserver:8761/eureka/
+      - EUREKA_INSTANCE_PREFER-IP-ADDRESS=true
+      - EUREKA_CLIENT_REGISTERWITHEUREKA=true
+      - EUREKA_CLIENT_FETCHREGISTRY=true
+    volumes:
+      - /c/Users/bruno.castilho/config:/tmp/config
+    networks:
+      - baires-network
+    depends_on:
+      - eurekaserver
+
+  webserver:
+    image: webserver
+    container_name: webserver
+    ports:
+      - "8081:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_CLOUD_CONFIG_URI=http://configserver:8080
+    networks:
+      - baires-network
+    depends_on:
+      - configserver
+      - topicconfiguration
+
+  topicconfiguration:
+    image: topicconfiguration
+    container_name: topicconfiguration
+    ports:
+      - "8082:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_CLOUD_CONFIG_URI=http://configserver:8080
+    networks:
+      - baires-network
+    depends_on:
+      - configserver
+      - kafka
+
+  user-admin:
+    image: user-admin
+    container_name: user-admin
+    ports:
+      - "8083:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_CLOUD_CONFIG_URI=http://CONFIGSERVER:8080
+    networks:
+      - baires-network
+    depends_on:
+      - configserver
+      - kafka
+      - eurekaserver
+
+  tcpdump:
+    image: nicolaka/netshoot
+    depends_on:
+      - nginx
+    command: tcpdump -i eth0 -w /data/nginx.pcap
+    networks:
+      - baires-network
+    volumes:
+      - $PWD/data:/data
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - 80:80
+    networks:
+      - baires-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - baires-network
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    networks:
+      - baires-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "9093:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - baires-network
+
+networks:
+  baires-network:
+    driver: bridge
