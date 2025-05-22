@@ -1,4 +1,3 @@
-#docker login -u bcastilhobairesdev -p Inicio15042020;
 
 while IFS= read -r -d '' file
 do
